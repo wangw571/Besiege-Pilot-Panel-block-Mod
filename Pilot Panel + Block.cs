@@ -347,6 +347,9 @@ namespace PanelMod
         public bool 有相对高度;
         public Vector3 绝对位置;
         public Vector3 绝对角度;
+        public float 俯仰角;
+        public float 偏转角;
+        public float 滚转角;
         public float 相对角度;
         public float myrts;
         private GameObject Line;
@@ -366,6 +369,8 @@ namespace PanelMod
             相对高度 = 0;
             有相对高度 = false;
             相对角度 = 0;
+            滚转角 = 0;
+            俯仰角 = 0;
         }
 
         protected override void OnSimulateFixedUpdate()
@@ -389,6 +394,11 @@ namespace PanelMod
             else { 有相对高度 = false; }
             绝对位置 = this.transform.position;
             相对角度 = (Mathf.Atan2(相对位置.x, 相对位置.z) - 角度到归零的差距.y*Mathf.Rad2Deg - myrts);
+            //新添加：20151007
+            俯仰角 = Vector3.Angle(this.transform.forward, Vector3.up);
+            滚转角 = Vector3.Angle(this.transform.up, Vector3.up);
+            偏转角 = Vector3.Angle(this.transform.right, Vector3.up);//我也不知道这是什么
+            //
             绝对角度 = this.transform.rotation.ToEulerAngles();
             //重设轨迹
             if (Input.GetKey(this.GetComponent<MyBlockInfo>().key1/*这里也是打算使用零件专用的按键*/)) { i = 0; UnityEngine.Object.DestroyImmediate(Line.gameObject); }
