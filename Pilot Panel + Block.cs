@@ -31,8 +31,8 @@ namespace PanelMod
                 .Mass(0.01f)
                 .IconOffset(new Icon(1f, new Vector3(0f, 0f, 0f), new Vector3(-90f, 45f, 0f)))//第一个float是图标缩放，五六七是我找的比较好的角度
                 .ShowCollider(false)
-                .AddingPoints(new List<AddingPoint> { new BasePoint(true, false) })
-                .CompoundCollider(new List<ColliderComposite> { /*new ColliderComposite (0.5f, 1f, 0, new Vector3(0, 0, 0.7f), new Vector3(0, 0, 0)),*/new ColliderComposite(new Vector3(0.7f, 0.7f, 1.3f), new Vector3(0f, 0f, 0.8f), new Vector3(0f, 0f, 0f)) })
+                .AddingPoints(new List<AddingPoint> { new BasePoint(true, true) })
+                .CompoundCollider(new List<ColliderComposite> { /*new ColliderComposite (0.5f, 1f, 0, new Vector3(0, 0, 0.7f), new Vector3(0, 0, 0)),*/new ColliderComposite(new Vector3(0.01f, 0.01f, 0.01f), new Vector3(0f, 0f, 0.01f), new Vector3(0f, 0f, 0f)) })
                 .NeededResources(new List<NeededResource> { new NeededResource(ResourceType.Audio, "missleLaunch.ogg") }//需要的资源，例如音乐
 
             );
@@ -371,6 +371,12 @@ namespace PanelMod
             相对角度 = 0;
             滚转角 = 0;
             俯仰角 = 0;
+            Line = new GameObject();
+            Line.name = "轨迹";
+            Line.AddComponent<LineRenderer>();
+            Line.renderer.material = new Material(Shader.Find("Particles/Additive"));
+            Line.GetComponent<LineRenderer>().SetWidth(0.1f, 0.1f);
+            Line.GetComponent<LineRenderer>().SetColors(Color.Lerp(Color.red, Color.white, 0.5f), Color.Lerp(Color.yellow, Color.white, 0.5f));
         }
 
         protected override void OnSimulateFixedUpdate()
@@ -397,7 +403,7 @@ namespace PanelMod
             //新添加：20151007
             俯仰角 = Vector3.Angle(this.transform.forward, Vector3.up);
             滚转角 = Vector3.Angle(this.transform.up, Vector3.up);
-            偏转角 = Vector3.Angle(this.transform.right, Vector3.up);//我也不知道这是什么
+            偏转角 = Vector3.Angle(this.transform.forward, Vector3.forward);//我也不知道这是什么
             //
             绝对角度 = this.transform.rotation.ToEulerAngles();
             //重设轨迹
@@ -406,15 +412,12 @@ namespace PanelMod
             //继续轨迹
                 if (this.GetComponent<MyBlockInfo>().toggleModeEnabled == false/*这里是打算使用零件专用的toggle*/)
             {
-                Line = new GameObject();
-                Line.name = "轨迹";
-                Line.AddComponent<LineRenderer>();
-                Line.renderer.material = new Material(Shader.Find("Particles/Additive"));
-                Line.GetComponent<LineRenderer>().SetWidth(0.1f, 0.1f);
-                Line.GetComponent<LineRenderer>().SetColors(Color.Lerp(Color.red, Color.white, 0.5f), Color.Lerp(Color.yellow, Color.white, 0.5f));
+                Line.GetComponent<LineRenderer>().SetVertexCount(i + 1);
+                  Line.GetComponent<LineRenderer>().SetPosition(i, this.transform.position);
+                i += 1;
             }
-            Line.GetComponent<LineRenderer>().SetPosition(i, this.transform.position);
-            i += 1;
+            
+            
         }
 
 
