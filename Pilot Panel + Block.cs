@@ -2,40 +2,52 @@ using spaar;
 using System;
 using spaar.ModLoader;
 using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 using UnityEngine;
 using TheGuysYouDespise;
 using Blocks;
 
 
-
-namespace PanelMod
+namespace PanelBlock
 {
     public class PanelBlock : BlockMod
     {
-        public override Version Version { get { return new Version("0.2"); } }
+        public override Version Version { get { return new Version("0.4"); } }
         public override string Name { get { return "Panel Block Mod"; } }
         public override string DisplayName { get { return "Panel Block Mod"; } }
-        public override string BesiegeVersion { get { return "v0.11"; } }
+        public override string BesiegeVersion { get { return "v0.25"; } }
         public override string Author { get { return "bo我是天才od 覅是"; } }
-        protected Block panelBlock = new Block()
-                .ID(505)
-                .TextureFile("outUV1.png")
-                .BlockName("Panel Block")
-                .Obj(new List<Obj> { new Obj("k191.obj", new VisualOffset(Vector3.one, Vector3.zero, Vector3.zero)) })
-                .Scripts(new Type[] { typeof(PanelBlockS) })
-                .Properties(new BlockProperties().Key1("清除轨迹", "c").Key2("重设相对位置/角度", "x")
-                                                 .CanBeDamaged(Mathf.Infinity)
-                                                 .ToggleModeEnabled("不标注轨迹", false)
-                                                 )
-                .Mass(0.01f)
-                .IconOffset(new Icon(1f, new Vector3(0f, 0f, 0f), new Vector3(-90f, 45f, 0f)))//第一个float是图标缩放，五六七是我找的比较好的角度
-                .ShowCollider(false)
-                .AddingPoints(new List<AddingPoint> { new BasePoint(true, true) })
-                .CompoundCollider(new List<ColliderComposite> { /*new ColliderComposite (0.5f, 1f, 0, new Vector3(0, 0, 0.7f), new Vector3(0, 0, 0)),*/new ColliderComposite(new Vector3(0.01f, 0.01f, 0.01f), new Vector3(0f, 0f, 0.01f), new Vector3(0f, 0f, 0f)) })
-                .NeededResources(new List<NeededResource> { new NeededResource(ResourceType.Audio, "missleLaunch.ogg") }//需要的资源，例如音乐
 
-            );
+        protected Block panelBlock = new Block()
+            .ID(505)
+            .BlockName("Panel Block")
+            .Obj(new List<Obj> { new Obj("k191.obj", //Obj
+                                         "outUV1.png", //贴图
+                                         new VisualOffset(new Vector3(1f, 1f, 1f), //Scale
+                                                          new Vector3(0f, 0f, 0f), //Position
+                                                          new Vector3(0f, 0f, 0f)))//Rotation
+            })
+            ///在UI下方的选模块时的模样
+            .IconOffset(new Icon(1f, new Vector3(0f, 0f, 0f), new Vector3(-90f, 45f, 0f))) //Rotation
+            .Components(new Type[] { typeof(SensorS), })
+
+            ///给搜索用的关键词
+            .Properties(new BlockProperties().SearchKeywords(new string[] {
+                                                             "panel",
+                                                             "pilot",
+                                                             "navigate",
+                                                             "data",
+                                             }))
+            .Mass(0.1f)
+            .ShowCollider(false)
+            .CompoundCollider(new List<ColliderComposite> { new ColliderComposite(new Vector3(0.7f, 0.7f, 1.3f), new Vector3(0f, 0f, 0.8f), new Vector3(0f, 0f, 0f)) })
+            .NeededResources(new List<NeededResource> {new NeededResource(ResourceType.Texture, "Indicator.jpg") })
+            .AddingPoints(new List<AddingPoint> {
+                               (AddingPoint)new BasePoint(true, true)
+                                                .Motionable(false,false,false)
+                                                .SetStickyRadius(0.5f),
+            });
         public override void OnLoad()
         {
             LoadFancyBlock(panelBlock);//加载该模块
@@ -43,387 +55,345 @@ namespace PanelMod
         public override void OnUnload() { }
     }
 
-
-
-
-    public class PanelModCore
+    public class SensorS : BlockScript
     {
-        private MouseOrbit m;
-        
-        private float alt = 0;
-        private Vector3 vel3_now = Vector3.zero;
-        private Vector3 vel3_past = Vector3.zero;
-        private Vector3 vel3_cam = Vector3.zero;
-        private float vel1 = 0;
-        private Vector3 grav = Vector3.down * (float)38.5;
-        private float time0 = 0;
-        private float time00 = 0;
-        private float time = 0;
-        private float T1 = 0;
-        private float T2 = 0;
-        private Vector3 pos = Vector3.zero;
-        private float mileage = 0;
-        private float mileage2 = 0;
-        private float dt = 0;
-        private Vector3 dv = Vector3.zero;
-        private Vector3 bar = Vector3.forward;
-        private Vector3 p1 = Vector3.zero;
-        private Vector3 p2 = Vector3.back;
+        private MKey ActivateTargetIndicator;
+        private MToggle HideThisPanel;
+        private MToggle AdvTI;
+        private MSlider AdvTIS;
 
-        private int mode = 0;
+        private Texture IndicatorCookie = BlockScript.resources["Indicator.jpg"].texture;
+        private GameObject BombDrop;
+        private LineRenderer AdvBombDrop;
+
+        public Vector3 displacement;
+        public Vector3 velocity;
+        public Vector3 rotation;
+        public Vector3 direction;
+        public Vector3 horizontal;
+        public Vector3 bombposition;
+        public float T1;
+        public float dt;
+        public float T_hitground;
+        private float alt = 0;
+        private float climbrate = 0;
+        private Vector3 vel1;
+        private Vector3 vel0;
+        private float acce = 0;
+        private float overload = 0;
+        private float yaw = 0;
+        private float pitch = 0;
+        private float roll = 0;
+
+        private float row1 = 0;
+        private float row2 = 0;
+        private float row3 = 0;
+        private float tic = 0;
+        private float ticc = 0;
+        private float toc = 0;
+
+
+
         private float num_alt = 1;
         private float num_vel = 1;
         private float num_time = 1;
-        private int num_mileage = 1;
-
-
-        private string label_alt = "Altitude/m: ";
-        private string label_vel = "Speed/m/s: ";
-        private string label_time = "TotalTime/s: ";
-        private string label_mileage = "Mileage/m: ";
+        private bool disp = true;
+        private bool disp2 = false;
         
 
+        private string label_row2 = "Altitude/m: ";
+        private string label_row1 = "Speed/m/s: ";
+        private string label_row3 = "Time/s: ";
+
+
+        public override void SafeAwake()
+        {
+            ActivateTargetIndicator = AddKey("Target Indicator", //按键信息
+                                 "TI",           //名字
+                                 KeyCode.C);       //默认按键
+
+            HideThisPanel = AddToggle("Hide this/n block's panel",   //toggle信息
+                                       "Hide",       //名字
+                                       false);             //默认状态
+            AdvTI = AddToggle("ADVANCED /n Target Indicator",   //toggle信息
+                                       "AdvTI",       //名字
+                                       false);             //默认状态
+            AdvTIS = AddSlider("Amount /nof Lines", "LineAmt", 20f, 2f, 45f);
+        }
+
+        protected virtual IEnumerator UpdateMapper()
+        {
+            if (BlockMapper.CurrentInstance == null)
+                yield break;
+            while (Input.GetMouseButton(0))
+                yield return null;
+            BlockMapper.CurrentInstance.Copy();
+            BlockMapper.CurrentInstance.Paste();
+            yield break;
+        }
+        public override void OnSave(BlockXDataHolder data)
+        {
+            SaveMapperValues(data);
+        }
+        public override void OnLoad(BlockXDataHolder data)
+        {
+            LoadMapperValues(data);
+            if (data.WasSimulationStarted) return;
+        }
         
-        public PanelModCore()
+        void K()
         {
-        }
-
-        public void Parameter(Rect rect)
-        {
-
-            //Debug.Log(m.target.name);
-
-            if ((AddPiece.isSimulating))
-            {
-           
-                GUILayout.BeginArea(rect);
-                
-                if (this.m.target.rigidbody != null)
-                {
-                    GUILayout.BeginHorizontal("box");
-                    if (GUILayout.Button("driver"))
-                    {
-                        mode = 0;
-                    }
-                    if (GUILayout.Button("pilot"))
-                    {
-                        mode = 1;
-                    }
-                    GUILayout.EndHorizontal();
-
-
-
-                    T1 = Time.time;
-                    vel3_now = this.m.target.rigidbody.velocity;
-
-
-                    vel1 = vel3_now.magnitude;
-                        if (GUILayout.Button(string.Concat(label_vel, ((int)(vel1* num_vel)).ToString())))
-                        {
-                            if (num_vel == 1)
-                            {
-                                label_vel = "Speed/km/h: ";
-                                num_vel = (float)3.6;
-                            }
-                            else if(num_vel==(float)3.6)
-                            {
-                                label_vel = "Speed/mph: ";
-                                num_vel = (float)2.24;
-                            }
-                            else
-                            {
-                                label_vel = "Speed/m/s: ";
-                                num_vel = 1;
-                            }
-                        }
-
-
-                    pos = this.m.target.rigidbody.position;
-
-                    if (mode == 1)
-                    {
-                        alt = (int)((pos.y) / num_alt);
-
-                        if (GUILayout.Button(string.Concat(label_alt, alt.ToString())))
-                        {
-                            if (num_alt == 1)
-                            {
-                                label_alt = "Altitude/ft: ";
-                                num_alt = (float)0.3048;
-                            }
-                            else
-                            {
-                                label_alt = "Altitude/m: ";
-                                num_alt = 1;
-                            }
-
-
-                        }
-                    }
-
-
-
-                    dv = vel3_now - vel3_past;
-                    dt = T1 - T2;
-
-                    if (mode == 0)
-                    {
-
-                        
-                        mileage = (mileage + Mathf.Sqrt(vel3_now.x * vel3_now.x + vel3_now.z * vel3_now.z) * dt);
-                        if (num_mileage == 1)
-                        {
-                            mileage2 = (int)mileage;
-                        }
-                        else
-                        {
-                            mileage2 = mileage/num_mileage;
-                        }
-                        if (GUILayout.Button(string.Concat(label_mileage, mileage2 .ToString())))
-                        {
-                            if (num_mileage == 1)
-                            {
-                                num_mileage = 1000;
-                                label_mileage = "Mileage/km: ";
-                            }
-                            else
-                            {
-                                num_mileage = 1;
-                                label_mileage = "Mileage/m: ";
-                            }
-                        }
-                    }
-
-
-
-
-
-                    if (num_time == 1)
-                    {
-                        time = (int)(T1-time00);
-                    }
-                    else if (num_time == 2)
-                    {
-                        time = T1 - time0;
-                    }
-
-                    if(GUILayout.Button(string.Concat(label_time, time.ToString())))
-                    {
-                        if (num_time == 1)
-                        {
-                            time0 = T1;
-                            label_time = "tic... ";
-                            num_time = 2;
-                            
-                        }
-                        else if (num_time == 2)
-                        {
-                            label_time = "toc: ";
-                            num_time = 3;
-                        }
-                        else
-                        {
-                            label_time = "TotalTime/s: ";
-                            num_time = 1;
-                            time0 = 0;
-                        }
-                    }
-
-
-                    
-
-                    vel3_past = vel3_now;
-                    T2 = T1;
-                    
-
-
-                }
-                GUILayout.EndArea();
-                
-            }
-            else
-            {
-                mileage = 0;
-                time00 = Time.time;
-            }
-          
+            AdvTIS.DisplayInMapper = AdvTI.IsActive;
+        }   
             
-        }
-
-        public void INPUT()
-        {
-            if (this.m == null)
-            {
-                this.m = Camera.main.GetComponent<MouseOrbit>();
-                if (this.m == null)
-                {
-                    return;
-                }
-            }
-            if ((this.m.target == null ? true : !AddPiece.isSimulating))
-            {
-            }
-        }
-
-
-        
-        public void Cam()
-        {
-
-            if (AddPiece.isSimulating)
-            {
-                Camera.main.transform.Rotate(new Vector3(0, 10, 0), Time.fixedDeltaTime * 2);
-                vel3_cam.x = vel3_now.x;
-                vel3_cam.z = vel3_now.z;
-                p1 = pos - vel3_cam.normalized * 10;
-
-
-            }
-
-            
-
-
-
-            
-            
-        }
-
-    }
-
-
-
-
-
-    public class PanelModLoader : MonoBehaviour
-    {
-        public PanelModLoader()
-        {
-            Debug.Log("Started the PanelMod!");
-        }
-
-        public void Start()
-        {
-
-            base.gameObject.AddComponent<MMMwo>();
-
-        }
-    }
-
-    
-    internal class MMMwo : MonoBehaviour
-    {
-        private PanelModCore MMm = new PanelModCore();
-
-        public MMMwo()
-        {
-        }
-
-        public void OnGUI()
-        {
-            this.MMm.Parameter(new Rect(0f, 58f, 200f, 300f));
-            this.MMm.Cam();
-        }
-
-        public void Update()
-        {
-            this.MMm.INPUT();
-        }
-    }
-
-
-
-
-    public class PanelBlockS : BlockScript {
-        private string label_alt = "Altitude/m: ";
-        private string label_vel = "Speed/m/s: ";
-        private string label_time = "TotalTime/s: ";
-        private string label_mileage = "Mileage/m: ";
-        private Vector3 坐标到归零的差距;
-        private Vector3 角度到归零的差距;
-        public Vector3 速度;
-        public float 平面速度;
-        public Vector3 相对位置;
-        public float 相对高度;
-        public bool 有相对高度;
-        public Vector3 绝对位置;
-        public Vector3 绝对角度;
-        public float 俯仰角;
-        public float 偏转角;
-        public float 滚转角;
-        public float 相对角度;
-        public float myrts;
-        private GameObject Line;
-        private int i;
-
-        private RaycastHit hitt;
-        private RaycastHit hitt2;
-
 
         protected override void OnSimulateStart()
         {
-            i = 0;
-            坐标到归零的差距 = Vector3.zero;
-            角度到归零的差距 = Vector3.zero;
-            速度 = Vector3.zero;
-            相对位置 = Vector3.zero;
-            相对高度 = 0;
-            有相对高度 = false;
-            相对角度 = 0;
-            滚转角 = 0;
-            俯仰角 = 0;
-            Line = new GameObject();
-            Line.name = "轨迹";
-            Line.AddComponent<LineRenderer>();
-            Line.renderer.material = new Material(Shader.Find("Particles/Additive"));
-            Line.GetComponent<LineRenderer>().SetWidth(0.1f, 0.1f);
-            Line.GetComponent<LineRenderer>().SetColors(Color.Lerp(Color.red, Color.white, 0.5f), Color.Lerp(Color.yellow, Color.white, 0.5f));
+            ticc = Time.time;
+            disp = !HideThisPanel.IsActive;
+
+            BombDrop = new GameObject();
+            BombDrop.transform.SetParent(transform);
+            BombDrop.name = "Bomb Indicator"; 
+
+            BombDrop.AddComponent<Light>();
+
+            BombDrop.GetComponent<Light>().type = LightType.Spot;
+            BombDrop.GetComponent<Light>().intensity = 8;
+            BombDrop.GetComponent<Light>().range = Camera.main.farClipPlane;
+            BombDrop.GetComponent<Light>().color = Color.red;
+            BombDrop.GetComponent<Light>().cookie = IndicatorCookie;
+            BombDrop.GetComponent<Light>().cookieSize = 100;
+            BombDrop.GetComponent<Light>().range = 5;
+            BombDrop.transform.LookAt(new Vector3(BombDrop.transform.position.x, BombDrop.transform.position.y - 10, BombDrop.transform.position.z));
+            BombDrop.GetComponent<Light>().enabled = false;
+            BombDrop.AddComponent<DestroyIfEditMode>();
+
+            if (AdvTI.IsActive)
+            {
+                    float width = 1f;
+                AdvBombDrop =  this.gameObject.AddComponent<LineRenderer>();
+                AdvBombDrop.material = new Material(Shader.Find("Particles/Additive"));
+                AdvBombDrop.SetWidth(width, width);
+                AdvBombDrop.SetColors(Color.red, Color.yellow);
+                AdvBombDrop.SetPosition(0, transform.position);
+                AdvBombDrop.SetVertexCount((int)AdvTIS.Value);
+                AdvBombDrop.enabled = false;
+
+            }
         }
 
         protected override void OnSimulateFixedUpdate()
         {
-            myrts = this.transform.rotation.ToEulerAngles().y * Mathf.Rad2Deg;
-            if (myrts >= 180) { myrts = myrts - 360; }
-            速度 = this.rigidbody.velocity;
-            平面速度 =(float) Math.Sqrt(Math.Pow( this.rigidbody.velocity.x, 2) + Math.Pow(this.rigidbody.velocity.y, 2));
-            if (/*按下了reset*/Input.GetKey(this.GetComponent<MyBlockInfo>().key2/*这里是打算使用零件专用的按键*/)) {
-                坐标到归零的差距 = Vector3.zero - this.transform.position;
-                角度到归零的差距 = Vector3.zero - this.transform.rotation.ToEulerAngles();
-                /*ToEulerAngles()能将四元数转化为三轴360° rad格式*/
-            }
-            相对位置 = 坐标到归零的差距 + Vector3.zero;//我脑子有些糊涂不知道这个算式对不对=。=
-            Ray 阻碍检测ray = new Ray(this.transform.position, Vector3.down);
-            if (Physics.Raycast(阻碍检测ray, out hitt2, Mathf.Infinity))
+
+
+            displacement = this.GetComponent<Rigidbody>().position;
+            velocity = this.GetComponent<Rigidbody>().velocity;
+            rotation = this.GetComponent<Rigidbody>().rotation.eulerAngles;
+            direction = this.transform.forward;
+            horizontal =new Vector3(-direction.z/direction.x, 0f, 1f).normalized;
+
+            T1 = Time.time;
+            dt = Time.fixedDeltaTime;
+
+            if (disp)
             {
-                相对高度 = this.transform.position.y - hitt2.point.y;
-                有相对高度 = true;
+                vel0 = vel1;
+                vel1 = velocity;
+                acce = (vel1.magnitude - vel0.magnitude) / dt;
+                overload = (Vector3.Dot((vel1 - vel0), this.transform.up) / dt + (float)38.5 * Vector3.Dot(Vector3.up, this.transform.up)) / (float)38.5;
+
+                alt = displacement.y;
+                climbrate = velocity.y;
+
+                pitch = 90 - Mathf.Acos((2 - (direction - Vector3.up).magnitude * (direction - Vector3.up).magnitude) / 2) / Mathf.PI * 180;
+                yaw = rotation.y;
+                roll = Mathf.Sign(direction.x) * (Mathf.Acos((2 - (horizontal - this.transform.up).magnitude * (horizontal - this.transform.up).magnitude) / 2) / Mathf.PI * 180 - 90);
             }
-            else { 有相对高度 = false; }
-            绝对位置 = this.transform.position;
-            相对角度 = (Mathf.Atan2(相对位置.x, 相对位置.z) - 角度到归零的差距.y*Mathf.Rad2Deg - myrts);
-            //新添加：20151007
-            俯仰角 = Vector3.Angle(this.transform.forward, Vector3.up);
-            滚转角 = Vector3.Angle(this.transform.up, Vector3.up);
-            偏转角 = Vector3.Angle(this.transform.forward, Vector3.forward);//我也不知道这是什么
-            //
-            绝对角度 = this.transform.rotation.ToEulerAngles();
-            //重设轨迹
-            if (Input.GetKey(this.GetComponent<MyBlockInfo>().key1/*这里也是打算使用零件专用的按键*/)) { i = 0; UnityEngine.Object.DestroyImmediate(Line.gameObject); }
+
+
             
-            //继续轨迹
-                if (this.GetComponent<MyBlockInfo>().toggleModeEnabled == false/*这里是打算使用零件专用的toggle*/)
+
+        }
+        protected override void OnSimulateUpdate()
+        {
+            if (ActivateTargetIndicator.IsReleased)
             {
-                Line.GetComponent<LineRenderer>().SetVertexCount(i + 1);
-                  Line.GetComponent<LineRenderer>().SetPosition(i, this.transform.position);
-                i += 1;
+                disp2 = !disp2;
             }
-            
-            
+            if (disp2)
+            {
+                float grav = Physics.gravity.y;
+                T_hitground = (velocity.y + Mathf.Sqrt(velocity.y * velocity.y + 2 * 38.5f * displacement.y)) / 38.5f;
+                bombposition = new Vector3(
+                    displacement.x + T_hitground * velocity.x,
+                    4,
+                    displacement.z + T_hitground * velocity.z
+                    );
+
+                BombDrop.GetComponent<Light>().enabled = true;
+                BombDrop.GetComponent<Light>().transform.position = bombposition;
+                BombDrop.GetComponent<Light>().spotAngle = Math.Abs(displacement.y * 3) + 60;
+                BombDrop.transform.LookAt(new Vector3(bombposition.x, bombposition.y - 10, bombposition.z));
+
+                if (AdvTI.IsActive)
+                {
+                    for (int i = (int)AdvTIS.Value; i >= 1; --i)
+                        {
+                            T_hitground = (velocity.y + Mathf.Sqrt(velocity.y * velocity.y + 2 * 38.5f * displacement.y / (int)AdvTIS.Value * i)) / 38.5f;
+                            bombposition = new Vector3(
+                                displacement.x + T_hitground * velocity.x,
+                                displacement.y / (int)AdvTIS.Value * ((int)AdvTIS.Value-i),
+                                displacement.z + T_hitground * velocity.z
+                                );
+                            AdvBombDrop.SetPosition((int)AdvTIS.Value - i - 1, bombposition);
+                        AdvBombDrop.SetPosition((int)AdvTIS.Value - 1, transform.position);
+                        AdvBombDrop.enabled = true;
+                        }                    
+                }
+
+            }
+            else
+            {
+               BombDrop.GetComponent<Light>().enabled = false;
+                AdvBombDrop.enabled = false;
+            }
+
+
+
+
         }
 
 
+        public void OnGUI()
+        {
+
+                if (disp && AddPiece.isSimulating)
+            {
+
+                GUILayout.BeginArea(new Rect(0f, 58f, 200f, 400f));
+
+
+
+
+                if (num_vel == 1)
+                {
+                    row1 = vel1.magnitude;
+                }
+                else
+                {
+
+                    row1 = acce;
+                }
+
+
+                if (GUILayout.Button(string.Concat(label_row1, ((int)(row1)).ToString())))
+                {
+                    if (num_vel == 1)
+                    {
+                        label_row1 = "Accelaration/(m/s^2): ";
+                        num_vel = 2;
+                    }
+                    else 
+                    {
+                        label_row1 = "Speed/m/s: ";
+                        num_vel = 1;
+                    }
+                }
+
+
+                if (num_alt == 1)
+                {
+                    row2 = (int)alt;
+                }
+                else
+                {
+                    row2 = (int)climbrate;
+                }
+
+                if (GUILayout.Button(string.Concat(label_row2, row2.ToString())))
+                {
+                    if (num_alt == 1)
+                    {
+                        label_row2 = "ClimbRate/(m/s): ";
+                        num_alt = 2;
+                    }
+                    else
+                    {
+                        label_row2 = "Altitude/m: ";
+                        num_alt = 1;
+                    }
+
+
+                }
+
+
+                GUILayout.Button(string.Concat("Overload/G: ", ((int) overload).ToString(),".",(Mathf.Sign(overload)*((int)((overload- ((int)overload)) *10))).ToString() ));
+
+                if (num_time == 1)
+                {
+                    row3 = (int)(T1 - ticc);
+                }
+                else if (num_time == 2)
+                {
+                    row3 = T1 - tic;
+                }
+                else
+                {
+                    row3 = toc;
+                }
+
+                if (GUILayout.Button(string.Concat(label_row3, row3.ToString())))
+                {
+                    if (num_time == 1)
+                    {
+                        tic = T1;
+                        label_row3 = "tic... ";
+                        num_time = 2;
+
+                    }
+                    else if (num_time == 2)
+                    {
+                        label_row3 = "toc: ";
+                        num_time = 3;
+                        toc = T1 - tic;
+                    }
+                    else
+                    {
+                        label_row3 = "Time/s: ";
+                        num_time = 1;
+                    }
+                }
+
+                GUILayout.BeginHorizontal();
+
+                GUILayout.Button(string.Concat("roll ", ((int) roll).ToString()));
+                GUILayout.Button(string.Concat("pitch ", ((int) pitch).ToString()));
+                GUILayout.Button(string.Concat("yaw ", ((int) yaw).ToString()));
+
+                GUILayout.EndHorizontal();
+
+
+                GUILayout.EndArea();
+
+
+
+
+
+
 
 
             }
+
+            //if (/*按下了reset*/Input.GetKey(s.GetComponent<MyBlockInfo>().key2/*这里是打算使用零件专用的按键*/))
+            //{
+            //    
+            //}
+
+        }
+
+    }
+
 
 
 
