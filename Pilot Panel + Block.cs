@@ -359,11 +359,7 @@ namespace PanelBlock
 
         public void OnGUI()
         {
-
-            if (HUD_Activated)
-                OnHUDGUI();
-            
-            if (disp && AddPiece.isSimulating)
+            if (disp && StatMaster.isSimulating)
             {
 
                 GUILayout.BeginArea(new Rect(0f, 58f, 200f, 400f));
@@ -471,7 +467,8 @@ namespace PanelBlock
 
                 GUILayout.EndArea();
 
-
+                if (HUD_Activated)
+                    OnHUDGUI();
 
 
 
